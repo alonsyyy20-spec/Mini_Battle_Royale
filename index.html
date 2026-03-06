@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Mini Battle Royale</title>
+
+<style>
+
+body{
+margin:0;
+overflow:hidden;
+font-family:Arial;
+background:black;
+}
+
+#ui{
+position:absolute;
+top:10px;
+left:10px;
+color:white;
+font-size:18px;
+}
+
+#storm{
+position:absolute;
+top:40px;
+left:10px;
+}
+
+#players{
+position:absolute;
+top:70px;
+left:10px;
+}
+
+#build{
+position:absolute;
+bottom:10px;
+left:10px;
+}
+
+</style>
+
+</head>
+<body>
+
+<div id="ui">
+<div id="hp">HP:100</div>
+<div id="shield">Shield:0</div>
+<div id="storm">Storm radius:</div>
+<div id="players">Enemies:</div>
+</div>
+
+<div id="build">
+Build: [1] Wall | [2] Floor | [3] Ramp
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+
+<script>
+
+/////////////////////////////////////////////////////////
+// SCENA THREE.JS
+/////////////////////////////////////////////////////////
+
+const scene = new THREE.Scene()
+
+const camera = new THREE.PerspectiveCamera(
+75,
+window.innerWidth/window.innerHeight,
+0.1,
+1000
+)
+
+const renderer = new THREE.WebGLRenderer()
+
+renderer.setSize(window.innerWidth,window.innerHeight)
+
+document.body.appendChild(renderer.domElement)
+
+/////////////////////////////////////////////////////////
+// LUCE
+/////////////////////////////////////////////////////////
+
+const light = new THREE.DirectionalLight(0xffffff,1)
+
+light.position.set(50,100,50)
+
+scene.add(light)
+
+/////////////////////////////////////////////////////////
+// TERRENO
+/////////////////////////////////////////////////////////
+
+const groundGeo = new THREE.PlaneGeometry(500,500)
+
+const groundMat = new THREE.MeshLambertMaterial({color:0x228822})
+
+const ground = new THREE.Mesh(groundGeo,groundMat)
+
+ground.rotation.x = -Math.PI/2
+
+scene.add(ground)
+
+/////////////////////////////////////////////////////////
+// GIOCATORE
+/////////////////////////////////////////////////////////
+
+const playerGeo = new THREE.BoxGeometry(2,4,2)
+
+const playerMat = new THREE.MeshLambertMaterial({color:0x00aaff})
+
+const player = new THREE.Mesh(playerGeo,playerMat)
+
+player.position.y = 2
+
+scene.add(player)
+
+camera.position.set(0,5,10)
+
+/////////////////////////////////////////////////////////
+// CONTROLLI
+/////////////////////////////////////////////////////////
+
+const keys={}
+
+document.addEventListener("keydown",e=>keys[e.key]=true)
+
+document.addEventListener("keyup",e=>keys[e.key]=false)
+
+/////////////////////////////////////////////////////////
+// SPARO
+/////////////////////////////////////////////////////////
+
+const bullets=[]
+
+function shoot(){
+
+const geo = new THREE.SphereGeometry(0.3)
+
+const mat = new THREE.MeshBasicMaterial({color:0xffff00})
+
+const bullet = new THREE.Mesh(geo,mat)
+
+bullet.position.copy(player.position)
+
+bullet.velocity = new THREE.Vector3(0,0,-1)
+
+bullets.push(bullet)
+
+scene.add(bullet)
+
+}
+
+document.addEventListener("click",shoot)
+
+/////////////////////////////////////////////////////////
+// COSTRUZIONI
+/////////////////////////////////////////////////////////
+
+/*
+Sistema molto semplice:
+
+1 = muro
+2 = pavimento
+3 = rampa
+
+crea un oggetto davanti al player
+*/
+
+let buildMode="wall"
+
+document.addEventListener("keydown",e=>{
+
+if(e.key==="1") buildMode="wall"
+if(e.key==="2") buildMode="floor"
+if(e.key==="3") buildMode="ramp"
+
+})
+
+function build(){
+
+let mesh
+
+if(buildMode==="wall"){
+
+mesh = new THREE.Mesh(
+new THREE.BoxGeometry(5,5,1),
+new THREE.MeshLambertMaterial({color:0x8b4513})
+)
+
+}
+
+if(buildMode==="floor"){
+
+mesh = new THREE.Mesh(
+new THREE.BoxGeometry(5,1,5),
+new THREE.MeshLambertMaterial({color:0x999999})
+)
+
+}
+
+if(buildMode==="ramp"){
+
+mesh = new THREE.Mesh(
+new THREE.BoxGeometry(5,1,5),
+new THREE.MeshLambertMaterial({color:0xcccccc})
+)
+
+mesh.rotation.x = -Math.PI/6
+
+}
+
+mesh.position.set(
+player.position.x,
+player.position.y,
+player.position.z-5
+)
+
+scene.add(mesh)
+
+}
+
+document.addEventListener("contextmenu",e=>{
+e.preventDefault()
+build()
+})
+
+/////////////////////////////////////////////////////////
+// BOT (IA SEMPLICE)
+/////////////////////////////////////////////////////////
+
+/*
+IA molto semplice:
+
+1. si muovono verso il player
+2. se sono vicini sparano
+*/
+
+const bots=[]
+
+function spawnBot(){
+
+const geo = new THREE.BoxGeometry(2,4,2)
+
+const mat = new THREE.MeshLambertMaterial({color:0xff0000})
+
+const bot = new THREE.Mesh(geo,mat)
+
+bot.position.set(
+Math.random()*100-50,
+2,
+Math.random()*100-50
+)
+
+bot.hp=50
+
+bots.push(bot)
+
+scene.add(bot)
+
+}
+
+for(let i=0;i<10;i++) spawnBot()
+
+/////////////////////////////////////////////////////////
+// STORM
+/////////////////////////////////////////////////////////
+
+/*
+La zona sicura è un cerchio
+che si restringe lentamente
+*/
+
+let stormRadius = 200
+
+function updateStorm(){
+
+stormRadius -= 0.02
+
+document.getElementById("storm").innerText =
+"Storm radius: "+stormRadius.toFixed(0)
+
+const dist = player.position.length()
+
+if(dist>stormRadius){
+
+playerHP -= 0.1
+
+}
+
+}
+
+/////////////////////////////////////////////////////////
+// STATS
+/////////////////////////////////////////////////////////
+
+let playerHP=100
+let shield=0
+
+/////////////////////////////////////////////////////////
+// LOOP PRINCIPALE
+/////////////////////////////////////////////////////////
+
+function animate(){
+
+requestAnimationFrame(animate)
+
+/////////////////////////////////////////////////////////
+// MOVIMENTO PLAYER
+/////////////////////////////////////////////////////////
+
+if(keys["w"]) player.position.z -=0.3
+if(keys["s"]) player.position.z +=0.3
+if(keys["a"]) player.position.x -=0.3
+if(keys["d"]) player.position.x +=0.3
+
+/////////////////////////////////////////////////////////
+// BULLETS
+/////////////////////////////////////////////////////////
+
+bullets.forEach(b=>{
+
+b.position.add(b.velocity)
+
+})
+
+/////////////////////////////////////////////////////////
+// BOT AI
+/////////////////////////////////////////////////////////
+
+bots.forEach(bot=>{
+
+const dir = new THREE.Vector3()
+
+dir.subVectors(player.position,bot.position)
+
+const dist = dir.length()
+
+dir.normalize()
+
+// bot si muove verso il player
+bot.position.add(dir.multiplyScalar(0.05))
+
+// se vicino attacca
+if(dist<10){
+
+playerHP-=0.02
+
+}
+
+})
+
+/////////////////////////////////////////////////////////
+// STORM
+/////////////////////////////////////////////////////////
+
+updateStorm()
+
+/////////////////////////////////////////////////////////
+// UI
+/////////////////////////////////////////////////////////
+
+document.getElementById("hp").innerText="HP:"+Math.floor(playerHP)
+
+document.getElementById("players").innerText="Enemies:"+bots.length
+
+/////////////////////////////////////////////////////////
+
+renderer.render(scene,camera)
+
+}
+
+animate()
+
+</script>
+
+</body>
+  </html>
