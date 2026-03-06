@@ -2,18 +2,12 @@
 <html lang="it">
 
 <head>
-
 <meta charset="UTF-8">
-
-<meta name="viewport"
-content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Mini Battle Royale</title>
-
 <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 
 <style>
-
 html,body{
 margin:0;
 padding:0;
@@ -21,10 +15,9 @@ width:100%;
 height:100%;
 overflow:hidden;
 background:black;
-touch-action:none;
 font-family:Arial;
+touch-action:none;
 }
-
 canvas{
 position:fixed;
 top:0;
@@ -33,7 +26,6 @@ width:100vw;
 height:100vh;
 display:block;
 }
-
 #ui{
 position:absolute;
 top:10px;
@@ -41,21 +33,18 @@ left:10px;
 color:white;
 z-index:10;
 }
-
 #controls{
 position:absolute;
 bottom:20px;
 left:20px;
 z-index:10;
 }
-
 #actions{
 position:absolute;
 bottom:20px;
 right:20px;
 z-index:10;
 }
-
 button{
 width:70px;
 height:70px;
@@ -66,364 +55,241 @@ background:rgba(255,255,255,0.3);
 color:white;
 font-size:16px;
 }
-
 .row{
 display:flex;
 justify-content:center;
 }
-
 </style>
-
 </head>
 
 <body>
 
 <div id="ui">
-
 <div id="hp">HP:100</div>
 <div id="storm">Storm:200</div>
 <div id="players">Enemies:0</div>
-
 </div>
 
 <div id="controls">
-
 <div class="row">
 <button id="up">⬆</button>
 </div>
-
 <div class="row">
 <button id="left">⬅</button>
 <button id="down">⬇</button>
 <button id="right">➡</button>
 </div>
-
 </div>
 
 <div id="actions">
-
 <button id="jump">Jump</button>
 <button id="shoot">Shoot</button>
 <button id="build">Build</button>
-
 </div>
 
 <script>
-
 //////////////////////////////////////////////////////
-// SCENA
+// SCENA E RENDERER
 //////////////////////////////////////////////////////
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
 
-const scene = new THREE.Scene()
-
-scene.background = new THREE.Color(0x87ceeb)
-
-const camera = new THREE.PerspectiveCamera(
-75,
-window.innerWidth/window.innerHeight,
-0.1,
-1000
-)
-
-const renderer = new THREE.WebGLRenderer({antialias:true})
-
-renderer.setSize(window.innerWidth,window.innerHeight)
-
-document.body.appendChild(renderer.domElement)
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth,window.innerHeight);
+document.body.appendChild(renderer.domElement);
 
 //////////////////////////////////////////////////////
 // LUCI
 //////////////////////////////////////////////////////
-
-const ambient = new THREE.AmbientLight(0xffffff,0.6)
-scene.add(ambient)
-
-const sun = new THREE.DirectionalLight(0xffffff,1)
-sun.position.set(50,100,50)
-scene.add(sun)
+const ambient = new THREE.AmbientLight(0xffffff,0.6);
+scene.add(ambient);
+const sun = new THREE.DirectionalLight(0xffffff,1);
+sun.position.set(50,100,50);
+scene.add(sun);
 
 //////////////////////////////////////////////////////
 // TERRENO
 //////////////////////////////////////////////////////
-
 const ground = new THREE.Mesh(
-new THREE.PlaneGeometry(500,500),
-new THREE.MeshLambertMaterial({color:0x2ecc71})
-)
-
-ground.rotation.x = -Math.PI/2
-
-scene.add(ground)
+  new THREE.PlaneGeometry(500,500),
+  new THREE.MeshLambertMaterial({color:0x2ecc71})
+);
+ground.rotation.x = -Math.PI/2;
+scene.add(ground);
 
 //////////////////////////////////////////////////////
 // PLAYER
 //////////////////////////////////////////////////////
-
 const player = new THREE.Mesh(
-new THREE.BoxGeometry(2,4,2),
-new THREE.MeshLambertMaterial({color:0x3498db})
-)
+  new THREE.BoxGeometry(2,4,2),
+  new THREE.MeshLambertMaterial({color:0x3498db})
+);
+player.position.y = 2;
+scene.add(player);
 
-player.position.y = 2
-
-scene.add(player)
-
-camera.position.set(0,6,10)
+let playerBox = new THREE.Box3().setFromObject(player);
 
 //////////////////////////////////////////////////////
 // MOVIMENTO
 //////////////////////////////////////////////////////
-
-const move={
-up:false,
-down:false,
-left:false,
-right:false
-}
-
+const move={up:false,down:false,left:false,right:false};
 function bind(id,dir){
-
-const b=document.getElementById(id)
-
-b.addEventListener("pointerdown",()=>move[dir]=true)
-
-b.addEventListener("pointerup",()=>move[dir]=false)
-
-b.addEventListener("pointerleave",()=>move[dir]=false)
-
+  const b=document.getElementById(id);
+  b.addEventListener("pointerdown",()=>move[dir]=true);
+  b.addEventListener("pointerup",()=>move[dir]=false);
+  b.addEventListener("pointerleave",()=>move[dir]=false);
 }
+bind("up","up");
+bind("down","down");
+bind("left","left");
+bind("right","right");
 
-bind("up","up")
-bind("down","down")
-bind("left","left")
-bind("right","right")
-
-//////////////////////////////////////////////////////
-// SALTO
-//////////////////////////////////////////////////////
-
-let velocityY=0
-let onGround=true
-
+let velocityY=0;
+let onGround=true;
 document.getElementById("jump").onclick=()=>{
-
-if(onGround){
-velocityY=0.25
-onGround=false
-}
-
-}
-
-//////////////////////////////////////////////////////
-// SPARO
-//////////////////////////////////////////////////////
-
-const bullets=[]
-
-document.getElementById("shoot").onclick=()=>{
-
-const bullet=new THREE.Mesh(
-new THREE.SphereGeometry(0.3),
-new THREE.MeshBasicMaterial({color:0xffff00})
-)
-
-bullet.position.copy(player.position)
-
-bullet.velocity=new THREE.Vector3(0,0,-1)
-
-bullets.push(bullet)
-
-scene.add(bullet)
-
-}
-
-//////////////////////////////////////////////////////
-// COSTRUZIONI
-//////////////////////////////////////////////////////
-
-document.getElementById("build").onclick=()=>{
-
-const wall=new THREE.Mesh(
-new THREE.BoxGeometry(5,5,1),
-new THREE.MeshLambertMaterial({color:0x8e5a2b})
-)
-
-wall.position.set(
-player.position.x,
-2,
-player.position.z-5
-)
-
-scene.add(wall)
-
-}
-
-//////////////////////////////////////////////////////
-// BOT
-//////////////////////////////////////////////////////
-
-const bots=[]
-
-function spawnBot(){
-
-const bot=new THREE.Mesh(
-new THREE.BoxGeometry(2,4,2),
-new THREE.MeshLambertMaterial({color:0xe74c3c})
-)
-
-bot.position.set(
-Math.random()*100-50,
-2,
-Math.random()*100-50
-)
-
-bot.hp=3
-
-bots.push(bot)
-
-scene.add(bot)
-
-}
-
-for(let i=0;i<10;i++) spawnBot()
-
-//////////////////////////////////////////////////////
-// STORM
-//////////////////////////////////////////////////////
-
-let stormRadius=200
-
-function updateStorm(){
-
-stormRadius-=0.02
-
-document.getElementById("storm").innerText="Storm:"+Math.floor(stormRadius)
-
-const dist=Math.sqrt(
-player.position.x*player.position.x+
-player.position.z*player.position.z
-)
-
-if(dist>stormRadius){
-playerHP-=0.1
-}
-
-}
-
-//////////////////////////////////////////////////////
-// STATS
-//////////////////////////////////////////////////////
-
-let playerHP=100
-
-//////////////////////////////////////////////////////
-// LOOP
-//////////////////////////////////////////////////////
-
-function animate(){
-
-requestAnimationFrame(animate)
-
-if(move.up) player.position.z-=0.3
-if(move.down) player.position.z+=0.3
-if(move.left) player.position.x-=0.3
-if(move.right) player.position.x+=0.3
-
-velocityY-=0.01
-player.position.y+=velocityY
-
-if(player.position.y<=2){
-player.position.y=2
-velocityY=0
-onGround=true
+  if(onGround){velocityY=0.25; onGround=false;}
 }
 
 //////////////////////////////////////////////////////
 // BULLETS
 //////////////////////////////////////////////////////
-
-bullets.forEach((b,bi)=>{
-
-b.position.add(b.velocity)
-
-bots.forEach((bot,i)=>{
-
-const dist=b.position.distanceTo(bot.position)
-
-if(dist<2){
-
-bot.hp--
-
-scene.remove(b)
-bullets.splice(bi,1)
-
-if(bot.hp<=0){
-
-scene.remove(bot)
-bots.splice(i,1)
-
+const bullets=[];
+document.getElementById("shoot").onclick=()=>{
+  const bullet = new THREE.Mesh(
+    new THREE.SphereGeometry(0.3),
+    new THREE.MeshBasicMaterial({color:0xffff00})
+  );
+  bullet.position.copy(player.position);
+  bullet.velocity = new THREE.Vector3(0,0,-1);
+  bullets.push(bullet);
+  scene.add(bullet);
 }
-
-}
-
-})
-
-})
 
 //////////////////////////////////////////////////////
-// BOT AI
+// COSTRUZIONI
 //////////////////////////////////////////////////////
-
-bots.forEach(bot=>{
-
-const dir=new THREE.Vector3()
-
-dir.subVectors(player.position,bot.position)
-
-const dist=dir.length()
-
-dir.normalize()
-
-bot.position.add(dir.multiplyScalar(0.03))
-
-if(dist<6){
-playerHP-=0.05
+const walls=[];
+document.getElementById("build").onclick=()=>{
+  const wall = new THREE.Mesh(
+    new THREE.BoxGeometry(5,5,1),
+    new THREE.MeshLambertMaterial({color:0x8e5a2b})
+  );
+  wall.position.set(player.position.x,2,player.position.z-5);
+  walls.push(wall);
+  scene.add(wall);
 }
 
-})
+//////////////////////////////////////////////////////
+// BOT
+//////////////////////////////////////////////////////
+const bots=[];
+function spawnBot(){
+  const bot = new THREE.Mesh(
+    new THREE.BoxGeometry(2,4,2),
+    new THREE.MeshLambertMaterial({color:0xe74c3c})
+  );
+  bot.position.set(Math.random()*100-50,2,Math.random()*100-50);
+  bot.hp = 3;
+  bots.push(bot);
+  scene.add(bot);
+}
+for(let i=0;i<10;i++) spawnBot();
 
 //////////////////////////////////////////////////////
-
-updateStorm()
-
-camera.position.x=player.position.x
-camera.position.z=player.position.z+10
-
-camera.lookAt(player.position)
-
-document.getElementById("hp").innerText="HP:"+Math.floor(playerHP)
-document.getElementById("players").innerText="Enemies:"+bots.length
-
-renderer.render(scene,camera)
-
+// STORM
+//////////////////////////////////////////////////////
+let stormRadius=200;
+function updateStorm(){
+  stormRadius -= 0.02;
+  document.getElementById("storm").innerText = "Storm:"+Math.floor(stormRadius);
+  const dist = Math.sqrt(player.position.x**2 + player.position.z**2);
+  if(dist>stormRadius){ playerHP -= 0.1; }
 }
 
-animate()
+//////////////////////////////////////////////////////
+// STATS
+//////////////////////////////////////////////////////
+let playerHP=100;
+
+//////////////////////////////////////////////////////
+// LOOP
+//////////////////////////////////////////////////////
+let lastPlayerPosition = player.position.clone();
+function animate(){
+  requestAnimationFrame(animate);
+
+  lastPlayerPosition.copy(player.position);
+
+  // movimento
+  if(move.up) player.position.z -=0.3;
+  if(move.down) player.position.z +=0.3;
+  if(move.left) player.position.x -=0.3;
+  if(move.right) player.position.x +=0.3;
+
+  // salto
+  velocityY -= 0.01;
+  player.position.y += velocityY;
+  if(player.position.y<=2){player.position.y=2;velocityY=0;onGround=true;}
+
+  // collisione muri
+  playerBox.setFromObject(player);
+  walls.forEach(wall=>{
+    const wallBox = new THREE.Box3().setFromObject(wall);
+    if(playerBox.intersectsBox(wallBox)){
+      player.position.copy(lastPlayerPosition);
+      playerBox.setFromObject(player);
+    }
+  });
+
+  // bullets
+  bullets.forEach((b,bi)=>{
+    b.position.add(b.velocity);
+    bots.forEach((bot,i)=>{
+      const botBox = new THREE.Box3().setFromObject(bot);
+      const bBox = new THREE.Box3().setFromObject(b);
+      if(bBox.intersectsBox(botBox)){
+        bot.hp--;
+        scene.remove(b);
+        bullets.splice(bi,1);
+        if(bot.hp<=0){
+          scene.remove(bot);
+          bots.splice(i,1);
+        }
+      }
+    })
+  });
+
+  // bot AI
+  bots.forEach(bot=>{
+    const dir = new THREE.Vector3().subVectors(player.position,bot.position).normalize();
+    bot.position.add(dir.multiplyScalar(0.03));
+    const dist = bot.position.distanceTo(player.position);
+    if(dist<6){ playerHP -=0.05; }
+  });
+
+  updateStorm();
+
+  camera.position.x = player.position.x;
+  camera.position.z = player.position.z + 10;
+  camera.position.y = player.position.y + 6;
+  camera.lookAt(player.position);
+
+  document.getElementById("hp").innerText = "HP:"+Math.floor(playerHP);
+  document.getElementById("players").innerText = "Enemies:"+bots.length;
+
+  renderer.render(scene,camera);
+}
+animate();
 
 //////////////////////////////////////////////////////
 // RESIZE
 //////////////////////////////////////////////////////
-
 window.addEventListener("resize",()=>{
-
-camera.aspect=window.innerWidth/window.innerHeight
-camera.updateProjectionMatrix()
-
-renderer.setSize(window.innerWidth,window.innerHeight)
-
-})
-
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
 </script>
-
 </body>
 </html>
