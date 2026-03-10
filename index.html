@@ -1,477 +1,249 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-
 <title>Mini Battle Royale</title>
-
 <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
-
 <style>
-
-html,body{
-margin:0;
-padding:0;
-width:100%;
-height:100%;
-overflow:hidden;
-background:black;
-font-family:Arial;
-touch-action:none;
+html, body {
+  margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:black; font-family:Arial; touch-action:none;
 }
-
-canvas{
-position:fixed;
-top:0;
-left:0;
-width:100%;
-height:100%;
+canvas {
+  position:fixed; top:0; left:0; width:100%; height:100%;
 }
-
-#ui{
-position:absolute;
-top:10px;
-left:10px;
-color:white;
-z-index:20;
-font-size:20px;
+#ui {
+  position:absolute; top:10px; left:10px; color:white; z-index:20; font-size:20px;
 }
-
-#controls{
-position:absolute;
-bottom:30px;
-left:30px;
-z-index:20;
+#controls {
+  position:absolute; bottom:30px; left:30px; z-index:20;
 }
-
-#actions{
-position:absolute;
-bottom:30px;
-right:30px;
-z-index:20;
+#actions {
+  position:absolute; bottom:30px; right:30px; z-index:20;
 }
-
-button{
-
-width:110px;
-height:110px;
-
-margin:8px;
-
-border:none;
-border-radius:18px;
-
-background:rgba(255,255,255,0.35);
-
-color:white;
-
-font-size:26px;
-
+button {
+  width:110px; height:110px; margin:8px; border:none; border-radius:18px;
+  background:rgba(255,255,255,0.35); color:white; font-size:26px;
 }
-
-.row{
-display:flex;
-justify-content:center;
+.row { display:flex; justify-content:center; }
+#minimap {
+  position:absolute; top:10px; right:10px; width:200px; height:200px;
+  background:rgba(0,0,0,0.7); border:3px solid white; z-index:30;
 }
-
-#minimap{
-
-position:absolute;
-top:10px;
-right:10px;
-
-width:200px;
-height:200px;
-
-background:rgba(0,0,0,0.7);
-
-border:3px solid white;
-
-z-index:30;
-
-}
-
 </style>
-
 </head>
-
 <body>
 
 <div id="ui">
-
-<div id="hp">HP:100</div>
-<div id="storm">Storm:200</div>
-<div id="players">Enemies:0</div>
-
+  <div id="hp">HP:100</div>
+  <div id="storm">Storm:200</div>
+  <div id="players">Enemies:0</div>
 </div>
 
 <div id="controls">
-
-<div class="row">
-<button id="up">⬆</button>
-</div>
-
-<div class="row">
-<button id="left">⬅</button>
-<button id="down">⬇</button>
-<button id="right">➡</button>
-</div>
-
+  <div class="row"><button id="up">⬆</button></div>
+  <div class="row">
+    <button id="left">⬅</button>
+    <button id="down">⬇</button>
+    <button id="right">➡</button>
+  </div>
 </div>
 
 <div id="actions">
-
-<button id="jump">JUMP</button>
-<button id="shoot">FIRE</button>
-<button id="build">WALL</button>
-
+  <button id="jump">JUMP</button>
+  <button id="shoot">FIRE</button>
+  <button id="build">WALL</button>
 </div>
 
 <canvas id="minimap"></canvas>
 
 <script>
+// ====================== SETUP THREE.JS ======================
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
 
-//////////////////////////////////////////////////////
-// SCENA
-//////////////////////////////////////////////////////
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth,window.innerHeight);
+document.body.appendChild(renderer.domElement);
 
-const scene = new THREE.Scene()
-scene.background = new THREE.Color(0x87ceeb)
+// luce
+scene.add(new THREE.AmbientLight(0xffffff,0.7));
+const sun = new THREE.DirectionalLight(0xffffff,1);
+sun.position.set(50,100,50);
+scene.add(sun);
 
-const camera = new THREE.PerspectiveCamera(
-75,
-window.innerWidth/window.innerHeight,
-0.1,
-1000
-)
-
-const renderer = new THREE.WebGLRenderer({antialias:true})
-renderer.setPixelRatio(window.devicePixelRatio)
-renderer.setSize(window.innerWidth,window.innerHeight)
-
-document.body.appendChild(renderer.domElement)
-
-//////////////////////////////////////////////////////
-// LUCI
-//////////////////////////////////////////////////////
-
-const ambient = new THREE.AmbientLight(0xffffff,0.7)
-scene.add(ambient)
-
-const sun = new THREE.DirectionalLight(0xffffff,1)
-sun.position.set(50,100,50)
-scene.add(sun)
-
-//////////////////////////////////////////////////////
-// TERRENO
-//////////////////////////////////////////////////////
-
+// terreno
 const ground = new THREE.Mesh(
-new THREE.PlaneGeometry(500,500),
-new THREE.MeshLambertMaterial({color:0x2ecc71})
-)
+  new THREE.PlaneGeometry(500,500),
+  new THREE.MeshLambertMaterial({color:0x2ecc71})
+);
+ground.rotation.x=-Math.PI/2;
+scene.add(ground);
 
-ground.rotation.x = -Math.PI/2
-scene.add(ground)
-
-//////////////////////////////////////////////////////
-// PLAYER
-//////////////////////////////////////////////////////
-
+// ====================== PLAYER ======================
 const player = new THREE.Mesh(
-new THREE.BoxGeometry(2,4,2),
-new THREE.MeshLambertMaterial({color:0x3498db})
-)
+  new THREE.BoxGeometry(2,4,2),
+  new THREE.MeshLambertMaterial({color:0x3498db})
+);
+player.position.y=2;
+scene.add(player);
+let playerBox = new THREE.Box3().setFromObject(player);
 
-player.position.y = 2
-scene.add(player)
-
-let playerBox = new THREE.Box3().setFromObject(player)
-
-//////////////////////////////////////////////////////
-// MOVIMENTO
-//////////////////////////////////////////////////////
-
-const move={up:false,down:false,left:false,right:false}
-
+// ====================== CONTROLLI ======================
+const move={up:false,down:false,left:false,right:false};
 function bind(id,dir){
-
-const b=document.getElementById(id)
-
-b.addEventListener("pointerdown",()=>move[dir]=true)
-b.addEventListener("pointerup",()=>move[dir]=false)
-b.addEventListener("pointerleave",()=>move[dir]=false)
-
+  const b=document.getElementById(id);
+  b.addEventListener("pointerdown",()=>move[dir]=true);
+  b.addEventListener("pointerup",()=>move[dir]=false);
+  b.addEventListener("pointerleave",()=>move[dir]=false);
 }
+bind("up","up"); bind("down","down"); bind("left","left"); bind("right","right");
 
-bind("up","up")
-bind("down","down")
-bind("left","left")
-bind("right","right")
-
-//////////////////////////////////////////////////////
-// SALTO
-//////////////////////////////////////////////////////
-
-let velocityY=0
-let onGround=true
-
+let velocityY=0; let onGround=true;
 document.getElementById("jump").onclick=()=>{
+  if(onGround){velocityY=0.25; onGround=false;}
+};
 
-if(onGround){
-
-velocityY=0.25
-onGround=false
-
-}
-
-}
-
-//////////////////////////////////////////////////////
-// BULLETS
-//////////////////////////////////////////////////////
-
-const bullets=[]
-
+// ====================== BULLETS ======================
+const bullets=[];
 document.getElementById("shoot").onclick=()=>{
-
-const bullet = new THREE.Mesh(
-new THREE.SphereGeometry(0.3),
-new THREE.MeshBasicMaterial({color:0xffff00})
-)
-
-bullet.position.copy(player.position)
-
-bullet.velocity = new THREE.Vector3(0,0,-1)
-
-bullets.push(bullet)
-
-scene.add(bullet)
-
+  const bullet = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({color:0xffff00}));
+  bullet.position.copy(player.position);
+  bullet.velocity = new THREE.Vector3(0,0,-1);
+  bullets.push(bullet);
+  scene.add(bullet);
 }
 
-//////////////////////////////////////////////////////
-// COSTRUZIONI
-//////////////////////////////////////////////////////
-
-const walls=[]
-
+// ====================== MURI ======================
+const walls=[];
 document.getElementById("build").onclick=()=>{
-
-const wall = new THREE.Mesh(
-new THREE.BoxGeometry(5,5,1),
-new THREE.MeshLambertMaterial({color:0x8e5a2b})
-)
-
-wall.position.set(
-player.position.x,
-2,
-player.position.z-5
-)
-
-walls.push(wall)
-
-scene.add(wall)
-
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(5,5,1), new THREE.MeshLambertMaterial({color:0x8e5a2b}));
+  wall.position.set(player.position.x,2,player.position.z-5);
+  walls.push(wall);
+  scene.add(wall);
 }
 
-//////////////////////////////////////////////////////
-// BOT
-//////////////////////////////////////////////////////
-
-const bots=[]
-
+// ====================== BOT ======================
+const bots=[];
 function spawnBot(){
-
-const bot = new THREE.Mesh(
-new THREE.BoxGeometry(2,4,2),
-new THREE.MeshLambertMaterial({color:0xe74c3c})
-)
-
-bot.position.set(
-Math.random()*100-50,
-2,
-Math.random()*100-50
-)
-
-bot.hp = 3
-
-bots.push(bot)
-scene.add(bot)
-
+  const bot = new THREE.Mesh(new THREE.BoxGeometry(2,4,2), new THREE.MeshLambertMaterial({color:0xe74c3c}));
+  bot.position.set(Math.random()*100-50,2,Math.random()*100-50);
+  bot.hp=3;
+  bots.push(bot);
+  scene.add(bot);
 }
+for(let i=0;i<10;i++) spawnBot();
 
-for(let i=0;i<10;i++) spawnBot()
-
-//////////////////////////////////////////////////////
-// MINIMAP
-//////////////////////////////////////////////////////
-
-const mini=document.getElementById("minimap")
-const ctx=mini.getContext("2d")
-
-mini.width=200
-mini.height=200
+// ====================== MINI MAP ======================
+const mini=document.getElementById("minimap");
+const ctx=mini.getContext("2d");
+mini.width=200; mini.height=200;
 
 function drawMinimap(){
-
-ctx.clearRect(0,0,200,200)
-
-const scale=0.3
-
-// player
-ctx.fillStyle="blue"
-
-ctx.beginPath()
-ctx.arc(
-100 + player.position.x*scale,
-100 + player.position.z*scale,
-5,
-0,
-Math.PI*2
-)
-ctx.fill()
-
-// bots
-ctx.fillStyle="red"
-
-bots.forEach(bot=>{
-
-ctx.beginPath()
-ctx.arc(
-100 + bot.position.x*scale,
-100 + bot.position.z*scale,
-4,
-0,
-Math.PI*2
-)
-ctx.fill()
-
-})
-
+  ctx.clearRect(0,0,200,200);
+  const scale=0.3;
+  // player
+  ctx.fillStyle="blue";
+  ctx.beginPath();
+  ctx.arc(100 + player.position.x*scale, 100 + player.position.z*scale, 5, 0, Math.PI*2);
+  ctx.fill();
+  // bots
+  ctx.fillStyle="red";
+  bots.forEach(bot=>{
+    ctx.beginPath();
+    ctx.arc(100 + bot.position.x*scale, 100 + bot.position.z*scale, 4, 0, Math.PI*2);
+    ctx.fill();
+  });
+  // muri
+  ctx.fillStyle="brown";
+  walls.forEach(wall=>{
+    ctx.fillRect(100 + (wall.position.x-2.5)*scale, 100 + (wall.position.z-0.5)*scale, 5*scale, 5*scale);
+  });
 }
 
-//////////////////////////////////////////////////////
-// STATS
-//////////////////////////////////////////////////////
+// ====================== STATS ======================
+let playerHP=100;
+let stormRadius=200;
+function updateStorm(){
+  stormRadius-=0.02;
+  document.getElementById("storm").innerText="Storm:"+Math.floor(stormRadius);
+  const dist=Math.sqrt(player.position.x**2+player.position.z**2);
+  if(dist>stormRadius){playerHP-=0.1;}
+}
 
-let playerHP=100
-
-//////////////////////////////////////////////////////
-// LOOP
-//////////////////////////////////////////////////////
-
-let lastPos=player.position.clone()
-
+// ====================== LOOP ======================
+let lastPos = player.position.clone();
 function animate(){
+  requestAnimationFrame(animate);
+  lastPos.copy(player.position);
 
-requestAnimationFrame(animate)
+  // movimento
+  if(move.up) player.position.z -=0.4;
+  if(move.down) player.position.z +=0.4;
+  if(move.left) player.position.x -=0.4;
+  if(move.right) player.position.x +=0.4;
 
-lastPos.copy(player.position)
+  velocityY -=0.01;
+  player.position.y+=velocityY;
+  if(player.position.y<=2){player.position.y=2; velocityY=0; onGround=true;}
 
-if(move.up) player.position.z -=0.4
-if(move.down) player.position.z +=0.4
-if(move.left) player.position.x -=0.4
-if(move.right) player.position.x +=0.4
+  playerBox.setFromObject(player);
 
-velocityY -= 0.01
-player.position.y += velocityY
+  // collisioni con muri
+  walls.forEach(wall=>{
+    const wallBox = new THREE.Box3().setFromObject(wall);
+    if(playerBox.intersectsBox(wallBox)){player.position.copy(lastPos); playerBox.setFromObject(player);}
+  });
 
-if(player.position.y<=2){
-player.position.y=2
-velocityY=0
-onGround=true
+  // bullets
+  bullets.forEach((b,bi)=>{
+    b.position.add(b.velocity);
+    bots.forEach((bot,i)=>{
+      if(b.position.distanceTo(bot.position)<2){
+        bot.hp--;
+        scene.remove(b); bullets.splice(bi,1);
+        if(bot.hp<=0){scene.remove(bot); bots.splice(i,1);}
+      }
+    })
+  });
+
+  // bot AI e collisione muri
+  bots.forEach(bot=>{
+    let botLast = bot.position.clone();
+    const dir=new THREE.Vector3().subVectors(player.position,bot.position).normalize();
+    bot.position.add(dir.multiplyScalar(0.03));
+    let botBox = new THREE.Box3().setFromObject(bot);
+    walls.forEach(wall=>{
+      const wallBox = new THREE.Box3().setFromObject(wall);
+      if(botBox.intersectsBox(wallBox)){bot.position.copy(botLast);}
+    });
+    if(bot.position.distanceTo(player.position)<6){playerHP-=0.05;}
+  });
+
+  updateStorm();
+  drawMinimap();
+
+  camera.position.x = player.position.x;
+  camera.position.z = player.position.z + 12;
+  camera.position.y = player.position.y + 7;
+  camera.lookAt(player.position);
+
+  document.getElementById("hp").innerText="HP:"+Math.floor(playerHP);
+  document.getElementById("players").innerText="Enemies:"+bots.length;
+
+  renderer.render(scene,camera);
 }
+animate();
 
-playerBox.setFromObject(player)
-
-// collisioni muri
-walls.forEach(wall=>{
-
-const wallBox=new THREE.Box3().setFromObject(wall)
-
-if(playerBox.intersectsBox(wallBox)){
-player.position.copy(lastPos)
-}
-
-})
-
-// bullets
-bullets.forEach((b,bi)=>{
-
-b.position.add(b.velocity)
-
-bots.forEach((bot,i)=>{
-
-if(b.position.distanceTo(bot.position)<2){
-
-bot.hp--
-
-scene.remove(b)
-bullets.splice(bi,1)
-
-if(bot.hp<=0){
-scene.remove(bot)
-bots.splice(i,1)
-}
-
-}
-
-})
-
-})
-
-// bot AI
-bots.forEach(bot=>{
-
-const dir=new THREE.Vector3()
-dir.subVectors(player.position,bot.position)
-
-const dist=dir.length()
-
-dir.normalize()
-
-bot.position.add(dir.multiplyScalar(0.03))
-
-if(dist<6){
-playerHP-=0.05
-}
-
-})
-
-drawMinimap()
-
-camera.position.x=player.position.x
-camera.position.z=player.position.z+12
-camera.position.y=player.position.y+7
-
-camera.lookAt(player.position)
-
-document.getElementById("hp").innerText="HP:"+Math.floor(playerHP)
-document.getElementById("players").innerText="Enemies:"+bots.length
-
-renderer.render(scene,camera)
-
-}
-
-animate()
-
-//////////////////////////////////////////////////////
-// RESIZE
-//////////////////////////////////////////////////////
-
+// ====================== RESIZE ======================
 window.addEventListener("resize",()=>{
-
-camera.aspect=window.innerWidth/window.innerHeight
-camera.updateProjectionMatrix()
-
-renderer.setSize(window.innerWidth,window.innerHeight)
-
-})
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
 
 </script>
-
 </body>
 </html>
