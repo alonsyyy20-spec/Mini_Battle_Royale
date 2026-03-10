@@ -1,4 +1,4 @@
-he<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
@@ -7,27 +7,27 @@ he<!DOCTYPE html>
 <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 <style>
 html, body {
-  margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:black; font-family:Arial; touch-action:none;
+  margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87ceeb; font-family:Arial; touch-action:none;
 }
 canvas {
   position:fixed; top:0; left:0; width:100%; height:100%;
 }
 #ui {
-  position:absolute; top:10px; left:10px; color:white; z-index:20; font-size:20px;
+  position:absolute; top:10px; right:10px; color:#00ff00; z-index:20; font-size:22px; font-weight:bold;
 }
-#controls {
-  position:absolute; bottom:30px; left:30px; z-index:20;
+#gameover {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  color:red; font-size:50px; z-index:50; display:none; text-shadow: 2px 2px black;
 }
-#actions {
-  position:absolute; bottom:30px; right:30px; z-index:20;
-}
+#controls {position:absolute; bottom:30px; left:30px; z-index:20;}
+#actions {position:absolute; bottom:30px; right:30px; z-index:20;}
 button {
   width:110px; height:110px; margin:8px; border:none; border-radius:18px;
-  background:rgba(255,255,255,0.35); color:white; font-size:26px;
+  background:rgba(255,255,255,0.35); color:white; font-size:26px; font-weight:bold;
 }
-.row { display:flex; justify-content:center; }
+.row {display:flex; justify-content:center;}
 #minimap {
-  position:absolute; top:10px; right:10px; width:200px; height:200px;
+  position:absolute; top:10px; left:10px; width:200px; height:200px;
   background:rgba(0,0,0,0.7); border:3px solid white; z-index:30;
 }
 </style>
@@ -39,6 +39,8 @@ button {
   <div id="storm">Storm:200</div>
   <div id="players">Enemies:0</div>
 </div>
+
+<div id="gameover">HAI PERSO!</div>
 
 <div id="controls">
   <div class="row"><button id="up">⬆</button></div>
@@ -58,9 +60,9 @@ button {
 <canvas id="minimap"></canvas>
 
 <script>
-// ====================== SETUP THREE.JS ======================
+// ====================== THREE.JS SETUP ======================
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
+scene.background = new THREE.Color(0x87ceeb); // cielo azzurro
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({antialias:true});
@@ -69,15 +71,15 @@ renderer.setSize(window.innerWidth,window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // luce
-scene.add(new THREE.AmbientLight(0xffffff,0.7));
+scene.add(new THREE.AmbientLight(0xffffff,0.8));
 const sun = new THREE.DirectionalLight(0xffffff,1);
 sun.position.set(50,100,50);
 scene.add(sun);
 
-// terreno
+// ====================== TERRENO ======================
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(500,500),
-  new THREE.MeshLambertMaterial({color:0x2ecc71})
+  new THREE.MeshLambertMaterial({color:0x3cb043}) // verde più naturale
 );
 ground.rotation.x=-Math.PI/2;
 scene.add(ground);
@@ -85,7 +87,7 @@ scene.add(ground);
 // ====================== PLAYER ======================
 const player = new THREE.Mesh(
   new THREE.BoxGeometry(2,4,2),
-  new THREE.MeshLambertMaterial({color:0x3498db})
+  new THREE.MeshLambertMaterial({color:0x1e90ff}) // blu più brillante
 );
 player.position.y=2;
 scene.add(player);
@@ -102,9 +104,7 @@ function bind(id,dir){
 bind("up","up"); bind("down","down"); bind("left","left"); bind("right","right");
 
 let velocityY=0; let onGround=true;
-document.getElementById("jump").onclick=()=>{
-  if(onGround){velocityY=0.25; onGround=false;}
-};
+document.getElementById("jump").onclick=()=>{ if(onGround){velocityY=0.25; onGround=false;} };
 
 // ====================== BULLETS ======================
 const bullets=[];
@@ -119,7 +119,7 @@ document.getElementById("shoot").onclick=()=>{
 // ====================== MURI ======================
 const walls=[];
 document.getElementById("build").onclick=()=>{
-  const wall = new THREE.Mesh(new THREE.BoxGeometry(5,5,1), new THREE.MeshLambertMaterial({color:0x8e5a2b}));
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(5,5,1), new THREE.MeshLambertMaterial({color:0x8b4513})); // marrone più naturale
   wall.position.set(player.position.x,2,player.position.z-5);
   walls.push(wall);
   scene.add(wall);
@@ -128,7 +128,7 @@ document.getElementById("build").onclick=()=>{
 // ====================== BOT ======================
 const bots=[];
 function spawnBot(){
-  const bot = new THREE.Mesh(new THREE.BoxGeometry(2,4,2), new THREE.MeshLambertMaterial({color:0xe74c3c}));
+  const bot = new THREE.Mesh(new THREE.BoxGeometry(2,4,2), new THREE.MeshLambertMaterial({color:0xff4500})); // rosso arancio più visibile
   bot.position.set(Math.random()*100-50,2,Math.random()*100-50);
   bot.hp=3;
   bots.push(bot);
@@ -166,17 +166,14 @@ function drawMinimap(){
 // ====================== STATS ======================
 let playerHP=100;
 let stormRadius=200;
-function updateStorm(){
-  stormRadius-=0.02;
-  document.getElementById("storm").innerText="Storm:"+Math.floor(stormRadius);
-  const dist=Math.sqrt(player.position.x**2+player.position.z**2);
-  if(dist>stormRadius){playerHP-=0.1;}
-}
+let gameOver=false;
 
 // ====================== LOOP ======================
 let lastPos = player.position.clone();
 function animate(){
   requestAnimationFrame(animate);
+  if(gameOver) return;
+
   lastPos.copy(player.position);
 
   // movimento
@@ -209,7 +206,7 @@ function animate(){
     })
   });
 
-  // bot AI e collisione muri
+  // bot AI e collisioni muri
   bots.forEach(bot=>{
     let botLast = bot.position.clone();
     const dir=new THREE.Vector3().subVectors(player.position,bot.position).normalize();
@@ -219,10 +216,13 @@ function animate(){
       const wallBox = new THREE.Box3().setFromObject(wall);
       if(botBox.intersectsBox(wallBox)){bot.position.copy(botLast);}
     });
-    if(bot.position.distanceTo(player.position)<6){playerHP-=0.05;}
+    // danno se vicino al player
+    if(bot.position.distanceTo(player.position)<3){playerHP-=0.2;}
   });
 
-  updateStorm();
+  // respawn bot infiniti
+  if(bots.length<10) spawnBot();
+
   drawMinimap();
 
   camera.position.x = player.position.x;
@@ -232,6 +232,12 @@ function animate(){
 
   document.getElementById("hp").innerText="HP:"+Math.floor(playerHP);
   document.getElementById("players").innerText="Enemies:"+bots.length;
+
+  // GAME OVER
+  if(playerHP<=0 && !gameOver){
+    gameOver=true;
+    document.getElementById("gameover").style.display="block";
+  }
 
   renderer.render(scene,camera);
 }
@@ -243,7 +249,6 @@ window.addEventListener("resize",()=>{
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth,window.innerHeight);
 });
-
 </script>
 </body>
 </html>
